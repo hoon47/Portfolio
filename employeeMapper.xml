@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.co.deataworld.employee">
+
+<!-- 내 정보 불러오기(구직자) -->
+<select id="myInfo" parameterType="String" resultType="Map">
+	SELECT * FROM daetaworld.member
+	WHERE m_type = 1 
+	AND m_id = #{m_id}
+</select>
+
+
+<!-- 구직자 회원정보 수정 -->
+<update id="myInfoUpdate" parameterType="MemberDTO">
+	UPDATE daetaworld.member
+	SET
+	m_nick = #{m_nick},
+	m_password = #{m_password},
+	m_phone = #{m_phone},
+	m_email = #{m_email},
+	m_address1 = #{m_address1},
+	m_address2 = #{m_address2},
+	m_terms1 = #{m_terms1},
+	m_terms2 = #{m_terms2},
+	m_picture = #{m_picture},
+	a_code = #{a_code}
+	WHERE
+	m_id = #{m_id} 
+</update>
+
+<!-- 등록된 자기소개서 목록 -->
+<select id="resumeManagement" parameterType="String" resultType="ResumeDTO">
+	SELECT * FROM daetaworld.employee_intro
+	WHERE m_id = #{m_id}
+</select>
+
+<!-- 선택한 자소서 불러오기 -->
+<select id="selectResume" parameterType="ResumeDTO" resultType="ResumeDTO">
+	SELECT * FROM daetaworld.employee_intro
+	WHERE m_id = #{m_id} 
+	AND i_number = #{i_number}
+</select>
+
+<!-- 수정한 자소서 저장 ajax -->
+<update id="resumeUpdate" parameterType="ResumeDTO">
+	UPDATE daetaworld.employee_intro
+	SET
+	i_title = #{i_title},
+	i_contents = #{i_contents},
+	i_date = now()
+	WHERE
+	m_id = #{m_id} 
+	AND i_number = #{i_number}
+</update>
+
+<!-- 자소서 삭제하기 -->
+<delete id="resumeDelete" parameterType="ResumeDTO">
+	DELETE FROM daetaworld.employee_intro
+	WHERE
+	i_number = #{i_number}
+</delete>
+
+<!-- 등록된 자소서가 있는지 확인 -->
+<select id="resumeChk" parameterType="ResumeDTO" resultType="Map">
+	select i.i_number from employee_intro i
+    where i.m_id = #{m_id}
+</select>
+
+<!-- 자소서 작성 > 등록된 자소서가 없다면 대표자소서로 설정. -->
+<insert id="resumeRegister_1" parameterType="ResumeDTO">
+	INSERT INTO daetaworld.employee_intro
+	(i_number, i_title, i_contents, i_default, i_date, m_id)
+	VALUES(#{i_number}, #{i_title}, #{i_contents}, 1, now(), #{m_id})
+</insert>
+
+<!-- 자소서 작성 --> <!-- ajax -->
+<insert id="resumeRegister" parameterType="ResumeDTO">
+	INSERT INTO daetaworld.employee_intro
+	(i_number, i_title, i_contents, i_default, i_date, m_id)
+	VALUES(#{i_number}, #{i_title}, #{i_contents}, #{i_default}, now(), #{m_id})
+</insert>
+
+<!-- 대표 자소서 설정 -->
+<update id="resumeDefault" parameterType="ResumeDTO">
+	UPDATE daetaworld.employee_intro
+	SET
+	i_default = 1
+	WHERE
+	i_number = #{i_number}
+</update>
+
+<!-- 대표 자소서 초기화 -->
+<update id="resumeDefaultInit" parameterType="ResumeDTO">
+	UPDATE daetaworld.employee_intro
+	SET
+	i_default = '0'
+	WHERE
+	m_id = #{m_id} 
+	AND i_default = 1
+</update>
+
+
+<!-- 공고 디테일 접속시 m_id와 a_number(공고번호) 를 이용해 이미 지원한 공고인지 확인 -->
+<select id="applyCheck" parameterType="Map" resultType="java.lang.Integer" >
+	select count(*) from job_apply
+    join job_ads
+    on job_apply.a_number = job_ads.a_number
+    where
+    job_apply.a_number = #{a_number} 
+    and job_apply.m_id = #{m_id}
+</select>	
+
+
+<!-- 대타 신청 전 자소서가 등록되었는지 확인 -->
+<select id="introChk" parameterType="jobapplyDTO" resultType="Map">
+	select i.i_number from employee_intro i
+	where m_id = #{m_id} and i_default = 1
+</select>
+
+
+<!-- 대타신청 -->
+<insert id="jobApply" parameterType="JobApplyDTO">
+	insert into daetaworld.job_apply
+	(ja_date, jar_status, jae_status, m_id, a_number, i_number)
+	values
+	(now(), 0, 0, #{m_id}, #{a_number}, 0)
+</insert>
+
+
+<!-- 신청시 상태가 7로 바뀜 -->
+<update id="statusUpdate" parameterType="java.lang.Integer">
+	update job_ads
+	set
+	a_status = 1
+	where a_number = #{a_number}
+</update>
+
+
+<!-- 신청시 대표자소서 저장시켜야함 (m_id를 보내서) -->
+<update id="applyIntro" parameterType="JobApplyDTO">
+	update job_apply
+    join employee_intro
+    on job_apply.m_id = employee_intro.m_id
+    set 
+    job_apply.i_number = employee_intro.i_number
+    where employee_intro.m_id = #{m_id} 
+    and employee_intro.i_default = 1
+</update>
+
+
+
+<!-- 수정하자 job_ads 랑 shop_info 두개 다 불러와야함 Map으로 map.  -->
+<!-- 대타 지원신청한 모든 공고내역을 가져옴 (종료된거, 신청한거, 요청온거,  -->
+<select id="pinchHistory" parameterType="String" resultType="Map">
+	SELECT a.*, s.*, ja.*
+	FROM 
+	job_ads a, shop_info s, job_apply ja
+	WHERE
+	ja.m_id = #{m_id} 
+	AND ja.a_number = a.a_number 
+	AND a.s_number = s.s_number 
+	AND ja.jae_status != 4
+</select>
+
+
+<!-- 지원함, 확정정, 수락 알바목록 불어오기 +(완료한 공고 불러오기 x) -->
+<select id="pinchStatus" parameterType="String"	resultType="Map">
+	<![CDATA[ 
+	SELECT a.*, s.*, ja.*
+	FROM 
+	job_ads a, shop_info s, job_apply ja
+	WHERE
+	not ((left(a.a_date, 10) < date_format(curdate(), '%m/%d/%Y')
+	or date_format(curdate(), '%Y') - substring(a.a_date, 7, 10) = 1))
+	and ja.m_id = #{m_id} 
+	and ja.jae_status in (0,1,2,5) 
+	and ja.a_number = a.a_number 
+	and a.s_number = s.s_number
+	]]>
+</select>
+
+<!-- 종료된(완료한) 공고목록 불러오기 -->
+<select id="pinchExpired" parameterType="String" resultType="Map">
+	<![CDATA[ 
+	select s.m_id as id_rated, a.*, ja.*,s.*
+	from job_ads a, job_apply ja, shop_info s
+	where (left(a.a_date, 10) <= date_format(curdate(), '%m/%d/%Y')
+	or date_format(curdate(), '%Y') - substring(a.a_date, 7, 10) = 1)
+	and ja.a_number = a.a_number
+	and a.s_number = s.s_number
+	and (ja.jar_status in (4,7) and ja.jae_status in (2,7))
+	and ja.m_id = #{m_id}
+	]]>
+</select>
+
+<!-- (주변노예찾기)로 요청받은 공고목록 불러오기 -->
+<select id="requests" parameterType="String" resultType="Map">
+	select a.*, s.*, ja.*
+	from 
+	job_ads a, shop_info s, job_apply ja
+	where 
+	ja.m_id = #{m_id}
+	AND ja.a_number = a.a_number 
+	AND a.s_number = s.s_number 
+	AND ja.jae_status = '4'
+</select>
+
+
+<!-- 요청받은 공고 상세정보 보기 -->
+<select id="requestList" parameterType="Map" resultType="Map">
+	SELECT ja.*, a.*, s.*, a.m_id as owner_id
+	from job_apply ja, job_ads a, shop_info s
+	WHERE
+	ja.m_id = #{m_id} 
+	AND ja.a_number = #{a_number} 
+	AND ja.a_number = a.a_number 
+	AND ja.jae_status = 4 
+	AND a.s_number = s.s_number
+</select>
+
+
+<!-- 요청받은 공고 수락 클릭시  jae_status, jar_status 상태를 변경한다 수락으로 -->
+<update id="requestYes" parameterType="JobApplyDTO">
+	UPDATE daetaworld.job_apply ja
+	SET
+	jae_status = 5
+	WHERE
+	ja.m_id = #{m_id} 
+	AND a_number = #{a_number}
+</update>
+
+
+<!-- 요청받은 공고 거절 클릭시  jae_status, jar_status 상태를 변경한다 수락으로 -->
+<update id="requestNo" parameterType="JobApplyDTO">
+	UPDATE daetaworld.job_apply ja
+	SET
+	jae_status = 6, jar_status = 6
+	WHERE
+	ja.m_id = #{m_id} 
+	AND a_number = #{a_number}
+</update>
+
+
+<!-- 알바 종료 후 '확인' 버튼 클릭 시 a_staus 상태를 3으로 변경 -->
+<update id="pinchChk" parameterType="Map">
+	UPDATE daetaworld.job_ads a
+	SET
+	a.a_status = 3
+	WHERE
+	a.a_number = #{a_number}
+</update>
+
+<!-- 구직 신청 후 (구인자는 수락을 누름) + (a_filled 추가) 수락 선택. -->
+<update id="apply_o" parameterType="java.lang.Integer">
+	update job_apply ja
+	right join job_ads a
+	on(ja.a_number = a.a_number)
+	set
+	jar_status = 4,
+	jae_status = 2,
+	a.a_filled = a.a_filled + 1
+	where
+	ja.ja_number = #{ja_number}
+</update>
+
+
+<!-- 구직 신청 후 (구인자는 수락을 누름) 거절 선택. -->
+<update id="apply_x" parameterType="java.lang.Integer">
+	update job_apply ja
+	right join job_ads a
+	on(ja.a_number = a.a_number)
+	set
+	ja.jar_status = 2,
+	ja.jae_status = 3,
+	a.a_filled = a.a_filled - 1,
+	a.a_status = 0 
+	where
+	ja_number = #{ja_number}
+</update>
+
+
+<!-- 공고 신청중인 알바 지원 취소하기 -->
+<update id="applyCancel" parameterType="Map">
+	update job_apply ja
+	right join job_ads a
+	on ja.a_number = a.a_number
+	set
+	ja.jae_status = 3,
+	a.a_status = 0
+	where
+	a.a_number = #{a_number}
+	and
+	ja.ja_number = #{ja_number}
+</update>
+
+
+<!-- 자소서 삭제시 등록된 자소서가 1개(대표자소서) 일때 삭제 불가능 -->
+<select id="defaultIntro_xDel" parameterType="ResumeDTO" resultType="java.lang.Integer">
+	select count(*) from employee_intro i
+	where i.i_number
+	and i.m_id = #{m_id} and i.i_default = 1 and i.i_number = #{i_number}
+</select>
+
+
+<!-- 거절했던 공고인지 확인 -->
+<select id="cancelAdsCheck" parameterType="Map" resultType="java.lang.Integer">
+	select count(*) from job_apply ja
+    where ja.m_id = #{m_id}
+    and ja.a_number = #{a_number}
+    and ja.jae_status = 3
+</select>
+
+
+<!-- 신청중 취소한 공고 다시 지원하기 -->
+<update id="reApply" parameterType="JobApplyDTO">
+	update job_apply
+    set
+    jae_status = 0
+    where 
+    m_id = #{m_id} and a_number = #{a_number}; 
+</update>
+
+</mapper>
